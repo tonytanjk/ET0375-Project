@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relative Humidity</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: purple;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .return-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: #4CAF50;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    h1 {
+      text-align: center;
+      color: #2196F3;
+      margin-top: 0;
+    }
+    .humidity {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    canvas {
+      margin: 20px 0;
+    }
+    .description {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="dashboard" class="return-button">Return to Dashboard</a>
+    <h1>Relative Humidity</h1>
+    <div class="humidity">
+      <strong>Current Relative Humidity:</strong> <span id="humidity">Loading...</span>
+    </div>
+    <canvas id="humidityChart"></canvas>
+    <div class="description">
+      <h2>What is Relative Humidity?</h2>
+      <p>
+        Relative humidity is a measure of the amount of moisture in the air compared to the maximum amount of moisture the air can hold at a given temperature. 
+        It is expressed as a percentage.
+      </p>
+      <p>
+        High relative humidity can make the air feel warmer and is associated with discomfort. Low relative humidity can cause dryness in the skin and respiratory system.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    
+    let humidityData = [];
+    let labels = [];
+    const maxDataPoints = 10;
+
+    // Initialize the Humidity chart
+    const ctx = document.getElementById('humidityChart').getContext('2d');
+    const humidityChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Relative Humidity Over Time',
+          data: humidityData,
+          borderColor: '#2196F3',
+          backgroundColor: 'rgba(33, 150, 243, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 0,
+            max: 100,
+            title: {
+              display: true,
+              text: 'Relative Humidity (%)'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      requestSensorData();
+    });
+
+    socket.on('sensor_data', (data) => {
+      const currentTime = new Date().toLocaleTimeString();
+      document.getElementById('humidity').textContent = `${data.humidity}%`;
+
+      // Update chart data
+      if (humidityData.length >= maxDataPoints) {
+        humidityData.shift();
+        labels.shift();
+      }
+      humidityData.push(data.humidity);
+      labels.push(currentTime);
+
+      humidityChart.update();
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      document.getElementById('humidity').textContent = 'Error loading data';
+    });
+
+    const requestSensorData = () => {
+      socket.emit('request_data');
+    };
+
+    setInterval(requestSensorData, 5000); // Request data every 5 seconds
+  </script>
+</body>
+</html>

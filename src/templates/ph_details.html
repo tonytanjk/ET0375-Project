@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pH Level</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: purple;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .return-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: #4CAF50;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    h1 {
+      text-align: center;
+      color: #4CAF50;
+      margin-top: 0;
+    }
+    .ph-level {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    canvas {
+      margin: 20px 0;
+    }
+    .description {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="dashboard" class="return-button">Return to Dashboard</a>
+    <h1>pH Level</h1>
+    <div class="ph-level">
+      <strong>Current pH Level:</strong> <span id="ph-level">Loading...</span>
+    </div>
+    <canvas id="phChart"></canvas>
+    <div class="description">
+      <h2>What is pH?</h2>
+      <p>
+        pH is a measure of how acidic/basic water is. The range goes from 0 - 14, with 7 being neutral. 
+        pH levels less than 7 indicate acidity, whereas a pH of greater than 7 indicates a base.
+      </p>
+      <p>
+        pH is important because it affects the solubility and biological availability of chemical constituents 
+        such as nutrients (phosphorus, nitrogen, and carbon) and heavy metals (lead, copper, cadmium, etc.).
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    
+    let phData = [];
+    let labels = [];
+    const maxDataPoints = 10;
+
+    // Initialize the pH chart
+    const ctx = document.getElementById('phChart').getContext('2d');
+    const phChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'pH Level Over Time',
+          data: phData,
+          borderColor: '#4CAF50',
+          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 0,
+            max: 14,
+            title: {
+              display: true,
+              text: 'pH Level'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      requestSensorData();
+    });
+
+    socket.on('sensor_data', (data) => {
+      const currentTime = new Date().toLocaleTimeString();
+      const phLevel = data.ph_level;
+      document.getElementById('ph-level').textContent = phLevel;
+      
+      // Change chart and title color based on pH level
+      if (phLevel > 7) {
+        phChart.data.datasets[0].borderColor = 'red';
+        phChart.data.datasets[0].backgroundColor = 'rgba(255, 0, 0, 0.1)';
+        document.querySelector('h1').style.color = 'red';
+      } else if (phLevel < 6) {
+        phChart.data.datasets[0].borderColor = 'blue';
+        phChart.data.datasets[0].backgroundColor = 'rgba(0, 0, 255, 0.1)';
+        document.querySelector('h1').style.color = 'blue';
+      } else {
+        phChart.data.datasets[0].borderColor = '#4CAF50';
+        phChart.data.datasets[0].backgroundColor = 'rgba(76, 175, 80, 0.1)';
+        document.querySelector('h1').style.color = '#4CAF50';
+      }
+
+      // Update chart data
+      if (phData.length >= maxDataPoints) {
+        phData.shift();
+        labels.shift();
+      }
+      phData.push(phLevel);
+      labels.push(currentTime);
+
+      phChart.update();
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      document.getElementById('ph-level').textContent = 'Error loading data';
+    });
+
+    const requestSensorData = () => {
+      socket.emit('request_data');
+    };
+
+    setInterval(requestSensorData, 5000); // Request data every 5 seconds
+  </script>
+</body>
+</html>

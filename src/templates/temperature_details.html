@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Temperature</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: purple;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .return-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: #4CAF50;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    h1 {
+      text-align: center;
+      color: #FF5722;
+      margin-top: 0;
+    }
+    .temperature {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    canvas {
+      margin: 20px 0;
+    }
+    .description {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="dashboard" class="return-button">Return to Dashboard</a>
+    <h1>Temperature</h1>
+    <div class="temperature">
+      <strong>Current Temperature:</strong> <span id="temperature">Loading...</span>
+    </div>
+    <canvas id="temperatureChart"></canvas>
+    <div class="description">
+      <h2>What is Temperature?</h2>
+      <p>
+        Temperature is a measure of the warmth or coldness of an object or substance with reference to some standard value.
+        It is typically measured in degrees Celsius (°C) or Fahrenheit (°F).
+      </p>
+      <p>
+        Temperature is a crucial factor in the environment, influencing weather, human comfort, and various biological and physical processes.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    
+    let temperatureData = [];
+    let labels = [];
+    const maxDataPoints = 10;
+  
+    // Initialize the Temperature chart
+    const ctx = document.getElementById('temperatureChart').getContext('2d');
+    const temperatureChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Temperature Over Time',
+          data: temperatureData,
+          borderColor: '#FF5722', // Initial chart line color
+          backgroundColor: 'rgba(255, 87, 34, 0.1)', // Initial chart fill color
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 0,
+            max: 50,
+            title: {
+              display: true,
+              text: 'Temperature (°C)'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+  
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      requestSensorData();
+    });
+  
+    socket.on('sensor_data', (data) => {
+      const currentTime = new Date().toLocaleTimeString();
+      const temperature = data.temperature;
+      document.getElementById('temperature').textContent = `${temperature}°C`;
+  
+      // Change chart and title color if temperature exceeds 25°C
+      if (temperature > 25) {
+        temperatureChart.data.datasets[0].borderColor = 'red';
+        temperatureChart.data.datasets[0].backgroundColor = 'rgba(255, 0, 0, 0.1)';
+        document.querySelector('h1').style.color = 'red';
+      } else {
+        temperatureChart.data.datasets[0].borderColor = '#FF5722';
+        temperatureChart.data.datasets[0].backgroundColor = 'rgba(255, 87, 34, 0.1)';
+        document.querySelector('h1').style.color = '#FF5722';
+      }
+  
+      // Update chart data
+      if (temperatureData.length >= maxDataPoints) {
+        temperatureData.shift();
+        labels.shift();
+      }
+      temperatureData.push(temperature);
+      labels.push(currentTime);
+  
+      temperatureChart.update();
+    });
+  
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      document.getElementById('temperature').textContent = 'Error loading data';
+    });
+  
+    const requestSensorData = () => {
+      socket.emit('request_data');
+    };
+  
+    setInterval(requestSensorData, 5000); // Request data every 5 seconds
+  </script>
+</body>
+</html>

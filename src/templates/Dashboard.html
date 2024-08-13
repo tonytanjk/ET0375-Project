@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi and Sensor Data Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: purple; /* Purple background color for the entire page */
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background-color: white; /* White background color for content area */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border: 2px solid purple; /* Purple border around the container */
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .metrics, .dashboard {
+            margin-bottom: 20px;
+        }
+        .metrics {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        .metric {
+            background-color: #e3e3e3;
+            padding: 20px;
+            border-radius: 8px;
+            width: 30%;
+        }
+        .metric h2 {
+            margin: 0 0 10px;
+            color: #333;
+        }
+        .metric p {
+            margin: 0;
+            font-size: 24px;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .parameter {
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 2px 2px 12px #aaa;
+            background-color: yellow;
+            color: black;
+            text-align: center;
+            text-decoration: none; /* Remove underline from link */
+            position: relative; /* Position relative for the glowing exclamation mark */
+        }
+        .parameter:hover {
+            box-shadow: 4px 4px 14px #888;
+        }
+        .parameter.red {
+            background-color: red; /* Red background color */
+            color: white; /* White text color */
+            border: 1px solid #900; /* Darker border */
+        }
+        .parameter.red::after {
+            content: '!';
+            color: white;
+            font-size: 30px;
+            font-weight: bold;
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: red;
+            border-radius: 50%;
+            padding: 5px;
+            box-shadow: 0 0 10px yellow; /* Glowing effect */
+        }
+        h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 18px;
+            margin: 0;
+        }
+        #error-message {
+            color: red;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Raspberry Pi and Sensor Data Dashboard</h1>
+        
+        <!-- Raspberry Pi Metrics -->
+        <div class="metrics">
+            <div class="metric">
+                <h2>CPU Usage</h2>
+                <p id="cpu-usage">Loading...</p>
+            </div>
+            <div class="metric">
+                <h2>Memory Usage</h2>
+                <p id="memory-usage">Loading...</p>
+            </div>
+            <div class="metric">
+                <h2>Disk Usage</h2>
+                <p id="disk-usage">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Sensor Data -->
+        <div class="dashboard">
+            <a href="ph_details" id="ph-link" class="parameter">
+                <h2>pH Level</h2>
+                <p id="pH-level">Loading...</p>
+            </a>
+            <a href="temperature_details" id="temp-link" class="parameter">
+                <h2>Temperature</h2>
+                <p id="ambient-temperature">Loading...</p>
+            </a>
+            <a href="humidity_details" class="parameter">
+                <h2>Humidity</h2>
+                <p id="relative-humidity">Loading...</p>
+            </a>
+            <a href="light_intensity_details" class="parameter">
+                <h2>Light Intensity</h2>
+                <p id="ambient-lighting-intensity">Loading...</p>
+            </a>
+            <a href="ec_level_details" class="parameter">
+                <h2>EC Level</h2>
+                <p id="ec-level">Loading...</p>
+            </a>
+            <div id="error-message"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        function fetchSystemInfo() {
+            fetch('/hidden')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('cpu-usage').textContent = `${data.cpu_usage}%`;
+                    document.getElementById('memory-usage').textContent = `${data.memory_usage}%`;
+                    document.getElementById('disk-usage').textContent = `${data.disk_usage}%`;
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+        }
+
+        function updateParameters(data) {
+            const tempElement = document.getElementById('ambient-temperature');
+            const phElement = document.getElementById('pH-level');
+            const tempButton = document.querySelector('a[href="temperature_details"]');
+            const phButton = document.querySelector('a[href="ph_details"]');
+            
+            const temperature = data.temperature;
+            const pH = data.ph_level;
+
+            // Update temperature
+            tempElement.textContent = `${temperature}°C`;
+            if (temperature > 25) {
+                tempButton.classList.add('red');
+            } else {
+                tempButton.classList.remove('red');
+            }
+
+            // Update pH level
+            phElement.textContent = pH;
+            if (pH > 7 || pH < 6) {
+                phButton.classList.add('red');
+            } else {
+                phButton.classList.remove('red');
+            }
+        }
+
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            requestSensorData();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+
+        socket.on('sensor_data', (data) => {
+            updateParameters(data);
+            document.getElementById('relative-humidity').textContent = `${data.humidity}%`;
+            document.getElementById('ambient-lighting-intensity').textContent = `${data.light_intensity} lux`;
+            document.getElementById('ec-level').textContent = `${data.ec_level} mS/cm`;
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            document.getElementById('error-message').textContent = 'Error updating data';
+        });
+
+        const requestSensorData = () => {
+            socket.emit('request_data');
+        };
+
+        setInterval(requestSensorData, 4000); // Request sensor data every 4 seconds
+        setInterval(fetchSystemInfo, 4000); // Request system info every 5 seconds
+        fetchSystemInfo(); // Initial fetch for system info
+    </script>
+</body>
+</html>

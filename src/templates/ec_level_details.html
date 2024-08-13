@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EC Levels</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: purple;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .return-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: #4CAF50;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    h1 {
+      text-align: center;
+      color: #FF5722;
+      margin-top: 0;
+    }
+    .ec-level {
+      font-size: 24px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    canvas {
+      margin: 20px 0;
+    }
+    .description {
+      font-size: 18px;
+      line-height: 1.6;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <a href="dashboard" class="return-button">Return to Dashboard</a>
+    <h1>EC Levels</h1>
+    <div class="ec-level">
+      <strong>Current EC Level:</strong> <span id="ec-level">Loading...</span>
+    </div>
+    <canvas id="ecChart"></canvas>
+    <div class="description">
+      <h2>What is EC Level?</h2>
+      <p>
+        Electrical Conductivity (EC) measures the ability of a solution to conduct electricity. 
+        It is commonly used to assess the concentration of dissolved salts or nutrients in a solution.
+      </p>
+      <p>
+        EC levels are important in various applications, including agriculture and hydroponics, 
+        where nutrient concentration needs to be monitored and managed.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    
+    let ecData = [];
+    let labels = [];
+    const maxDataPoints = 10;
+
+    // Initialize the EC chart
+    const ctx = document.getElementById('ecChart').getContext('2d');
+    const ecChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'EC Level Over Time',
+          data: ecData,
+          borderColor: '#FF5722',
+          backgroundColor: 'rgba(255, 87, 34, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 1.0,
+            max: 2.5,
+            title: {
+              display: true,
+              text: 'EC Level (mS/cm)'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      requestSensorData();
+    });
+
+    socket.on('sensor_data', (data) => {
+      const currentTime = new Date().toLocaleTimeString();
+      document.getElementById('ec-level').textContent = `${data.ec_level} mS/cm`;
+
+      // Update chart data
+      if (ecData.length >= maxDataPoints) {
+        ecData.shift();
+        labels.shift();
+      }
+      ecData.push(data.ec_level);
+      labels.push(currentTime);
+
+      ecChart.update();
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      document.getElementById('ec-level').textContent = 'Error loading data';
+    });
+
+    const requestSensorData = () => {
+      socket.emit('request_data');
+    };
+
+    setInterval(requestSensorData, 5000); // Request data every 5 seconds
+  </script>
+</body>
+</html>
